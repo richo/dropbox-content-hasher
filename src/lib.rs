@@ -1,9 +1,16 @@
+#![deny(unused_must_use, missing_debug_implementations)]
+#![warn(rust_2018_idioms)]
+
 use digest;
 
 use digest::generic_array::typenum::U64;
 use digest::generic_array::GenericArray;
 use digest::{Reset, Digest, FixedOutput, Input};
 use sha2::Sha256;
+
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
 pub const BLOCK_SIZE: usize = 4 * 1024 * 1024;
 
@@ -14,27 +21,8 @@ pub const BLOCK_SIZE: usize = 4 * 1024 * 1024;
 /// raw binary representation of the hash.  The "content_hash" field in the
 /// Dropbox API is a hexadecimal-encoded version of this value.
 ///
-/// Example:
-///
-/// ```
-/// extern crate digest;
-/// use dropbox_content_hasher::DropboxContentHasher;
-/// use std::io::Read;
-/// use digest::{Digest,Input,FixedOutput};
-///
-/// let mut hasher = DropboxContentHasher::new();
-/// let mut buf: [u8; 4096] = [0; 4096];
-/// let mut f = std::fs::File::open("src/lib.rs").unwrap();
-/// loop {
-///     let len = f.read(&mut buf).unwrap();
-///     if len == 0 { break; }
-///     Input::input(&mut hasher, &buf[..len])
-/// }
-/// drop(f);
-///
-/// let hex_hash = format!("{:x}", hasher.result());
-/// println!("{}", hex_hash);
-/// ```
+/// For examples see `hash_file` and `hash_reader`, for an using this object directly see the
+/// source of `hash_reader`.
 
 #[derive(Clone, Debug)]
 pub struct DropboxContentHasher {
@@ -50,6 +38,49 @@ impl DropboxContentHasher {
             block_hasher: Sha256::new(),
             block_pos: 0,
         }
+    }
+
+    /// Return the content_hash for a given file, or an io::Error from either opening or reading
+    /// the file.
+    ///
+    /// ```
+    /// extern crate digest;
+    /// use dropbox_content_hasher::DropboxContentHasher;
+    /// use std::path::PathBuf;
+    ///
+    /// let path = PathBuf::from("src/lib.rs");
+    ///
+    /// let hex_hash = format!("{:x}", DropboxContentHasher::hash_file(&path).unwrap());
+    /// println!("{}", hex_hash);
+    /// ```
+    pub fn hash_file<T>(path: T) -> std::io::Result<GenericArray<u8, <Self as FixedOutput>::OutputSize>>
+    where T: AsRef<Path> {
+        let file = File::open(&path)?;
+        return DropboxContentHasher::hash_reader(&file);
+    }
+
+    /// Return the content_hash for a given object implementing Read, or an io::Error resulting
+    /// from trying to read its contents.
+    ///
+    /// ```
+    /// extern crate digest;
+    /// use dropbox_content_hasher::DropboxContentHasher;
+    ///
+    /// let mut f = std::fs::File::open("src/lib.rs").unwrap();
+    ///
+    /// let hex_hash = format!("{:x}", DropboxContentHasher::hash_reader(&mut f).unwrap());
+    /// println!("{}", hex_hash);
+    /// ```
+    pub fn hash_reader<T>(mut reader: T) -> std::io::Result<GenericArray<u8, <Self as FixedOutput>::OutputSize>>
+    where T: Read {
+        let mut hasher = DropboxContentHasher::new();
+        let mut buf = vec![0; BLOCK_SIZE];
+        loop {
+            let len = reader.read(&mut buf)?;
+            if len == 0 { break; }
+            Input::input(&mut hasher, &buf[..len])
+        }
+        Ok(hasher.result())
     }
 }
 
@@ -107,23 +138,15 @@ impl digest::BlockInput for DropboxContentHasher {
 mod tests {
     use super::*;
     use std::fs::File;
-    use std::io::Read;
 
     #[test]
     fn test_vector() {
         let expected = "485291fa0ee50c016982abbfa943957bcd231aae0492ccbaa22c58e3997b35e0".to_string();
         let mut file = File::open("test-data/milky-way-nasa.jpg").expect("Couldn't open test file");
 
-        let mut hasher = DropboxContentHasher::new();
-        let mut buf: [u8; 4096] = [0; 4096];
-        loop {
-            let len = file.read(&mut buf).unwrap();
-            if len == 0 { break; }
-            Input::input(&mut hasher, &buf[..len])
-        }
-        drop(file);
+        let result = DropboxContentHasher::hash_reader(&mut file).expect("Couldn't hash test file");
 
-        let hex_hash = format!("{:x}", hasher.result());
+        let hex_hash = format!("{:x}", result);
         assert_eq!(hex_hash, expected);
     }
 }
