@@ -1,7 +1,7 @@
 Dropbox Content Hasher
 ----------------------
 
-![build status](https://travis-ci.org/richo/dropbox-api-content-hasher.svg?branch=master)
+![build status](https://travis-ci.org/richo/dropbox-content-hasher.svg?branch=master)
 
 This crate provides an implementation of the Dropbox API's content_hash.
 
