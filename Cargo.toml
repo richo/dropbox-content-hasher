@@ -1,8 +1,15 @@
 [package]
 name = "dropbox-content-hasher"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Richo Healey <richo@psych0tik.net>"]
 edition = "2018"
+repository = "https://github.com/richo/dropbox-content-hasher"
+license-file = "LICENSE"
+description = """
+A rust implemtnation of Dropbox's content_hash
+
+Originally by the Dropbox team, extended and updated by Richo Healey
+"""
 
 [dependencies]
 digest = "0.8.0"
