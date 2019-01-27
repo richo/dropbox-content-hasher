@@ -1,0 +1,9 @@
+language: rust
+rust:
+  - stable
+  - nightly
+matrix:
+  fast_finish: true
+
+script:
+  - cargo test
